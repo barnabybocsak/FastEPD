@@ -3687,6 +3687,44 @@ static int IRAM_ATTR bbepPartialUpdate(FASTEPDSTATE *pState, bool bKeepOn, int i
     return BBEP_SUCCESS;
 } /* bbepPartialUpdate() */
 //
+// Drive one pass (one scan of every row) with caller-supplied pixel codes.
+// ppRows has native_height entries indexed by buffer row; each is either NULL
+// (the row is left alone) or native_width/4 bytes of 2-bit codes, first pixel
+// in the high bits: 0 = no change, 1 = darken, 2 = lighten. This lets the
+// caller schedule pushes per pixel (e.g. low-latency pen ink, where new pixels
+// start darkening on the very next pass). Turns the panel power on and leaves
+// it on; finish with a pass of all-NULL rows (neutral) before powering off.
+// Panels with BB_PANEL_FLAG_MIRROR_X are not supported yet.
+//
+int bbepRawPass(FASTEPDSTATE *pState, const uint8_t * const *ppRows)
+{
+    int i, iDMAOff = 0, iSkipped = 0;
+    int iPitch = pState->native_width / 4;
+
+    if (pState->iPanelType == BB_PANEL_VIRTUAL || pState->iPanelType == BB_PANEL_IT8951) return BBEP_ERROR_BAD_PARAMETER;
+    if (pState->iFlags & BB_PANEL_FLAG_MIRROR_X) return BBEP_ERROR_BAD_PARAMETER;
+    if (ppRows == NULL) return BBEP_ERROR_BAD_PARAMETER;
+    if (bbepEinkPower(pState, 1) != BBEP_SUCCESS) return BBEP_IO_ERROR;
+
+    bbepRowControl(pState, ROW_START);
+    for (i = 0; i < pState->native_height; i++) {
+        int dy = (pState->iFlags & BB_PANEL_FLAG_MIRROR_Y) ? pState->native_height - 1 - i : i;
+        uint8_t *d = &pState->dma_buf[iDMAOff];
+        if (ppRows[dy]) {
+            memcpy(d, ppRows[dy], iPitch);
+            iSkipped = 0;
+        } else {
+            if (iSkipped < 2) { // new skipped section; clear both halves of the DMA buffer (rows alternate between them)
+                memset(d, 0, iPitch);
+            }
+            iSkipped++;
+        }
+        bbepWriteRow(pState, d, iPitch, (i != 0));
+        iDMAOff ^= iPitch;
+    }
+    return BBEP_SUCCESS;
+} /* bbepRawPass() */
+//
 // Copy the current pixels to the previous
 // This facilitates doing partial updates after the power is lost
 //

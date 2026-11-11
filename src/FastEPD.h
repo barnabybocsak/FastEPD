@@ -376,6 +376,7 @@ class FASTEPD
     int fullUpdate(void);
     int fullUpdate(int iClearMode, bool bKeepOn = false, BB_RECT *pRect = NULL);
     int partialUpdate(bool bKeepOn, int iStartRow = 0, int iEndRow = 4095);
+    int rawPass(const uint8_t * const *ppRows); // one pass of caller-supplied 2-bit codes per native row
     int smoothUpdate(bool bKeepOn, uint8_t u8Color);
     int fastUpdate(bool bKeepOn = false);
     void setPasses(uint8_t iPartialPasses, uint8_t iFullPasses = 5);
