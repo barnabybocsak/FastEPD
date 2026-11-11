@@ -1865,9 +1865,30 @@ int iPitch;
         pBBEP->last_error = BBEP_ERROR_BAD_PARAMETER;
         return; // invalid coordinates
     }
+    // The pixel buffer is always in native panel orientation, so map the
+    // rectangle the same way the rotated pixel functions do
+    {
+        int x0 = x, y0 = y, x1 = x + w - 1, y1 = y + h - 1;
+        switch (pBBEP->rotation) {
+            case 90:
+                x = y0; w = y1 - y0 + 1;
+                y = pBBEP->width - 1 - x1; h = x1 - x0 + 1;
+                break;
+            case 180:
+                x = pBBEP->width - 1 - x1;
+                y = pBBEP->height - 1 - y1;
+                break;
+            case 270:
+                x = pBBEP->height - 1 - y1; w = y1 - y0 + 1;
+                y = x0; h = x1 - x0 + 1;
+                break;
+            default:
+                break;
+        }
+    }
 
     if (pBBEP->mode == BB_MODE_1BPP) {
-        iPitch = pBBEP->width / 8;
+        iPitch = (pBBEP->native_width + 7) / 8;
         for (ty=y; ty<y+h; ty++) {
             s = pBBEP->pCurrent;
             s += (ty * iPitch) + (x >> 3);
@@ -1887,7 +1908,7 @@ int iPitch;
             }
         } // for ty
     } else {  // 4-bpp
-        iPitch = pBBEP->width / 2;
+        iPitch = pBBEP->native_width / 2;
         for (ty = y; ty < y+h; ty++) {
             s = pBBEP->pCurrent;
             s += (ty * iPitch) + (x >> 1);
